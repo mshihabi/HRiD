@@ -106,6 +106,7 @@ If WithNormalisation = TRUE, raw HR values are standardized to Z-scores either g
 •	HRiD_Pvalue = pnorm(−Z) → targets decreases in richness (positive selection).
 
 •	HRiP_Pvalue = pnorm(Z) → targets increases in richness (candidate balancing selection).
+
 Log10-transformed p-values (*_LogPvalue) are included for Manhattan-style plotting.
 ________________________________________
 Output columns (most common)
@@ -113,10 +114,14 @@ Output columns (most common)
 •	Sliding (non-consecutive) modes: Window, CHROM, start.Index, start.position, end.Index, end.position, na (number of unique haplotypes), nh (effective number of haplotypes), HR_value, plus optional Z_value, HRiD_Pvalue, HRiD_LogPvalue, HRiP_Pvalue, HRiP_LogPvalue.
 
 •	Consecutive-SNP mode: same as above (no Window column), with SNPname and position for the focal SNP (anchor). In addition, consecutive-SNP outputs include diagnostic columns:
-o	if approach = "Bp.based": nSNP_center, nSNP_left, nSNP_right (SNP counts per window).
-o	if approach = "SNP.based": bpLen_center, bpLen_left, bpLen_right (bp span of salvaged blocks per window after maxGap).
-o	both approaches: nh_center, nh_left, nh_right (effective number of haplotypes per window). Note that nh_center is always identical to nh, since both refer to the focal (center) window; it is included for clarity and symmetry with the left/right diagnostics.
-o	at chromosome edges, diagnostics for the missing neighbor are reported as NA.
+
+-	if approach = "Bp.based": nSNP_center, nSNP_left, nSNP_right (SNP counts per window).
+
+-	if approach = "SNP.based": bpLen_center, bpLen_left, bpLen_right (bp span of salvaged blocks per window after maxGap).
+
+-	both approaches: nh_center, nh_left, nh_right (effective number of haplotypes per window). Note that nh_center is always identical to nh, since both refer to the focal (center) window; it is included for clarity and symmetry with the left/right diagnostics.
+
+-	at chromosome edges, diagnostics for the missing neighbor are reported as NA.
 ________________________________________
 Arguments
 
