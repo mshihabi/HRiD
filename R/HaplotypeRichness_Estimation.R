@@ -235,75 +235,51 @@ HaplotypeRichness.Estimation <- function(
       H$RowIndex <- seq_len(nrow(H))
       CHROM_h <- start.Index_h <- end.Index_h <- start.position_h <- end.position_h <- na_h <- nhh <- HR_value_h <- NULL
       anchor_pos_h_chr <- NULL
+      # per-window diagnostics (center/left/right) for consecutiveSNP=TRUE
+      nSNP_center_h <- nSNP_left_h <- nSNP_right_h <- NULL
+      bp_center_h <- bp_left_h <- bp_right_h <- NULL
+      nh_center_h <- nh_left_h <- nh_right_h <- NULL
       
       if (!isTRUE(consecutiveSNP)) {
-        # Bp.based sliding by bp distance, non-consecutive, haploid
+        startt <- start; endd <- end
         if (approach == "Bp.based") {
-          startt <- start
-          endd   <- end
-          if (endd <= H$POS[1]) {
-            startt <- H$POS[1]
-            endd   <- startt + end
-          }
+          if (endd <= H$POS[1]) { startt <- H$POS[1]; endd <- startt + end }
           while (endd <= H$POS[nrow(H)]) {
-            if (endd != H$POS[nrow(H)] & (endd + slide) > H$POS[nrow(H)]) {
-              endd <- H$POS[nrow(H)]
-            }
+            if (endd != H$POS[nrow(H)] & (endd + slide) > H$POS[nrow(H)]) endd <- H$POS[nrow(H)]
             idx <- which(H$POS >= startt & H$POS <= endd)
             if (length(idx) >= minSNP) {
               CHROM_h <- c(CHROM_h, chr)
               subH <- H[idx, , drop = FALSE]
               index_pos <- c(subH$RowIndex[1], subH$POS[1], subH$RowIndex[nrow(subH)], subH$POS[nrow(subH)])
               hap_cols <- setdiff(colnames(subH), c("POS", "RowIndex"))
-              k <- as.matrix(subH[, hap_cols, drop = FALSE])
-              if (!is.character(k)) storage.mode(k) <- "character"
-              keys <- apply(k, 2, paste0, collapse = "\r")
-              grp  <- match(keys, unique(keys))
-              cnt  <- tabulate(grp, nbins = max(grp))
-              freq <- cnt / length(keys)
+              k <- as.matrix(subH[, hap_cols, drop = FALSE]); if (!is.character(k)) storage.mode(k) <- "character"
+              keys <- apply(k, 2, paste0, collapse = "\r"); grp <- match(keys, unique(keys))
+              cnt  <- tabulate(grp, nbins = max(grp)); freq <- cnt / length(keys)
               eff  <- 1 / sum(freq^2)
               na_current <- length(cnt)
-              start.position_h <- c(start.position_h, index_pos[2])
-              end.position_h   <- c(end.position_h,   index_pos[4])
-              start.Index_h    <- c(start.Index_h,    index_pos[1])
-              end.Index_h      <- c(end.Index_h,      index_pos[3])
-              nhh  <- c(nhh, eff)
-              na_h <- c(na_h, na_current)
+              start.position_h <- c(start.position_h, index_pos[2]); end.position_h   <- c(end.position_h,   index_pos[4])
+              start.Index_h    <- c(start.Index_h,    index_pos[1]); end.Index_h      <- c(end.Index_h,      index_pos[3])
+              nhh  <- c(nhh, eff); na_h <- c(na_h, na_current)
             } else if (length(idx) > 0) {
               subH <- H[idx, , drop = FALSE]
               index_pos <- c(subH$RowIndex[1], subH$POS[1], subH$RowIndex[nrow(subH)], subH$POS[nrow(subH)])
               CHROM_h <- c(CHROM_h, chr)
-              start.position_h <- c(start.position_h, index_pos[2])
-              end.position_h   <- c(end.position_h,   index_pos[4])
-              start.Index_h    <- c(start.Index_h,    index_pos[1])
-              end.Index_h      <- c(end.Index_h,      index_pos[3])
-              na_h <- c(na_h, NA)
-              nhh  <- c(nhh, NA)
+              start.position_h <- c(start.position_h, index_pos[2]); end.position_h   <- c(end.position_h,   index_pos[4])
+              start.Index_h    <- c(start.Index_h,    index_pos[1]); end.Index_h      <- c(end.Index_h,      index_pos[3])
+              na_h <- c(na_h, NA); nhh  <- c(nhh, NA)
             }
-            startt <- startt + slide
-            endd   <- endd + slide
+            startt <- startt + slide; endd <- endd + slide
           }
-          m <- length(nhh)
-          HR_value_h <- rep(NA_real_, m)
-          if (m >= 2) {
-            HR_value_h[1] <- nhh[2] / nhh[1]
-            HR_value_h[m] <- nhh[m-1] / nhh[m]
-          }
-          if (m > 2) {
-            mid <- 2:(m-1)
-            HR_value_h[mid] <- (nhh[mid-1] + nhh[mid+1]) / (2 * nhh[mid])
-          }
+          m <- length(nhh); HR_value_h <- rep(NA_real_, m)
+          if (m >= 2) { HR_value_h[1] <- nhh[2] / nhh[1]; HR_value_h[m] <- nhh[m-1] / nhh[m] }
+          if (m > 2) { mid <- 2:(m-1); HR_value_h[mid] <- (nhh[mid-1] + nhh[mid+1]) / (2 * nhh[mid]) }
         } else {
-          # SNP.based, non-consecutive, haploid — index windows with maxGap salvage
           win_len <- if ((end - start) > 0) (end - start) else end
           if (win_len <= 0) stop("In SNP.based mode (haploid, non-consecutive) window length (end-start) must be > 0.")
           stepS <- max(1, as.integer(slide))
           min_needed <- needed_snp_count(minSNP, win_len)
-          
           for (iL in seq.int(1 + start, nrow(H), by = stepS)) {
-            iR <- min(iL + win_len - 1, nrow(H))
-            idx <- iL:iR
-            
+            iR <- min(iL + win_len - 1, nrow(H)); idx <- iL:iR
             sv <- salvage_by_gap(H$POS, idx, maxGap, min_needed, anchor_idx = NULL)
             CHROM_h <- c(CHROM_h, chr)
             if (sv$valid) {
@@ -317,16 +293,12 @@ HaplotypeRichness.Estimation <- function(
               start.position_h <- c(start.position_h, index_pos[2]); end.position_h <- c(end.position_h, index_pos[4])
               na_h <- c(na_h, length(cnt)); nhh <- c(nhh, eff)
             } else {
-              # Keep attempted bounds even if the window was not salvageable
-              start.Index_h <- c(start.Index_h, H$RowIndex[idx[1]])
-              end.Index_h   <- c(end.Index_h,   H$RowIndex[idx[length(idx)]])
-              start.position_h <- c(start.position_h, H$POS[idx[1]])
-              end.position_h   <- c(end.position_h,   H$POS[idx[length(idx)]])
+              start.Index_h <- c(start.Index_h, H$RowIndex[idx[1]]); end.Index_h   <- c(end.Index_h,   H$RowIndex[idx[length(idx)]])
+              start.position_h <- c(start.position_h, H$POS[idx[1]]); end.position_h   <- c(end.position_h,   H$POS[idx[length(idx)]])
               na_h <- c(na_h, NA); nhh <- c(nhh, NA)
             }
           }
-          m <- length(nhh)
-          HR_value_h <- rep(NA_real_, m)
+          m <- length(nhh); HR_value_h <- rep(NA_real_, m)
           if (m >= 2) { HR_value_h[1] <- nhh[2] / nhh[1]; HR_value_h[m] <- nhh[m-1] / nhh[m] }
           if (m > 2) { mid <- 2:(m-1); HR_value_h[mid] <- (nhh[mid-1] + nhh[mid+1]) / (2 * nhh[mid]) }
         }
@@ -346,6 +318,7 @@ HaplotypeRichness.Estimation <- function(
               sIdx <- if (length(idx) > 0) H$RowIndex[idx[1]] else NA
               eIdx <- if (length(idx) > 0) H$RowIndex[idx[length(idx)]] else NA
               return(list(valid=FALSE, na=NA, nh=NA,
+                          nSNP=length(idx), bpLen=R0 - L0,
                           startIndex=sIdx, endIndex=eIdx,
                           startPos=L0, endPos=R0))
             }
@@ -361,6 +334,7 @@ HaplotypeRichness.Estimation <- function(
             list(valid=TRUE,
                  na=length(cnt),
                  nh=1 / sum(freq^2),
+                 nSNP=length(idx), bpLen=index_pos[4]-index_pos[2],
                  startIndex=index_pos[1], endIndex=index_pos[3],
                  startPos=index_pos[2], endPos=index_pos[4])
           }
@@ -385,6 +359,12 @@ HaplotypeRichness.Estimation <- function(
                   na_h <- c(na_h, st_center$na)
                   nhh  <- c(nhh,  st_center$nh)
                   HR_value_h <- c(HR_value_h, if (st_left$valid && st_right$valid) (st_left$nh + st_right$nh)/(2*st_center$nh) else NA)
+                  # diagnostics
+                  nSNP_center_h <- c(nSNP_center_h, st_center$nSNP); nh_center_h <- c(nh_center_h, st_center$nh)
+                  nSNP_left_h   <- c(nSNP_left_h,   if (st_left$valid) st_left$nSNP else NA)
+                  nSNP_right_h  <- c(nSNP_right_h,  if (st_right$valid) st_right$nSNP else NA)
+                  nh_left_h     <- c(nh_left_h,     if (st_left$valid) st_left$nh else NA)
+                  nh_right_h    <- c(nh_right_h,    if (st_right$valid) st_right$nh else NA)
                 } else {
                   CHROM_h <- c(CHROM_h, chr)
                   start.Index_h    <- c(start.Index_h,    st_center$startIndex)
@@ -392,51 +372,42 @@ HaplotypeRichness.Estimation <- function(
                   start.position_h <- c(start.position_h, st_center$startPos)
                   end.position_h   <- c(end.position_h,   st_center$endPos)
                   na_h <- c(na_h, NA); nhh <- c(nhh, NA); HR_value_h <- c(HR_value_h, NA)
+                  nSNP_center_h <- c(nSNP_center_h, NA); nSNP_left_h <- c(nSNP_left_h, NA); nSNP_right_h <- c(nSNP_right_h, NA)
+                  nh_center_h <- c(nh_center_h, NA); nh_left_h <- c(nh_left_h, NA); nh_right_h <- c(nh_right_h, NA)
                 }
                 anchor_pos_h_chr <- c(anchor_pos_h_chr, p)
-                
               } else if (left_edge) {
                 st_near <- compute_hap_stats_h(p, p + end)
                 st_far  <- compute_hap_stats_h(p + half_end, p + 3*half_end)
-                if (st_near$valid) {
-                  CHROM_h <- c(CHROM_h, chr)
-                  start.Index_h    <- c(start.Index_h,    st_near$startIndex)
-                  end.Index_h      <- c(end.Index_h,      st_near$endIndex)
-                  start.position_h <- c(start.position_h, st_near$startPos)
-                  end.position_h   <- c(end.position_h,   st_near$endPos)
-                  na_h <- c(na_h, st_near$na)
-                  nhh  <- c(nhh,  st_near$nh)
-                  HR_value_h <- c(HR_value_h, if (st_far$valid) st_far$nh / st_near$nh else NA)
-                } else {
-                  CHROM_h <- c(CHROM_h, chr)
-                  start.Index_h    <- c(start.Index_h,    st_near$startIndex)
-                  end.Index_h      <- c(end.Index_h,      st_near$endIndex)
-                  start.position_h <- c(start.position_h, st_near$startPos)
-                  end.position_h   <- c(end.position_h,   st_near$endPos)
-                  na_h <- c(na_h, NA); nhh <- c(nhh, NA); HR_value_h <- c(HR_value_h, NA)
-                }
+                CHROM_h <- c(CHROM_h, chr)
+                # record "center" from near
+                start.Index_h    <- c(start.Index_h,    st_near$startIndex)
+                end.Index_h      <- c(end.Index_h,      st_near$endIndex)
+                start.position_h <- c(start.position_h, st_near$startPos)
+                end.position_h   <- c(end.position_h,   st_near$endPos)
+                na_h <- c(na_h, st_near$na); nhh <- c(nhh, st_near$nh)
+                HR_value_h <- c(HR_value_h, if (st_near$valid && st_far$valid) st_far$nh / st_near$nh else NA)
+                # diagnostics (no left window at the extreme)
+                nSNP_center_h <- c(nSNP_center_h, st_near$nSNP); nh_center_h <- c(nh_center_h, st_near$nh)
+                nSNP_left_h   <- c(nSNP_left_h, NA); nh_left_h <- c(nh_left_h, NA)
+                nSNP_right_h  <- c(nSNP_right_h, if (st_far$valid) st_far$nSNP else NA)
+                nh_right_h    <- c(nh_right_h,  if (st_far$valid) st_far$nh  else NA)
                 anchor_pos_h_chr <- c(anchor_pos_h_chr, p)
-                
               } else { # right edge
                 st_near <- compute_hap_stats_h(p - end, p)
                 st_far  <- compute_hap_stats_h(p - 3*half_end, p - half_end)
-                if (st_near$valid) {
-                  CHROM_h <- c(CHROM_h, chr)
-                  start.Index_h    <- c(start.Index_h,    st_near$startIndex)
-                  end.Index_h      <- c(end.Index_h,      st_near$endIndex)
-                  start.position_h <- c(start.position_h, st_near$startPos)
-                  end.position_h   <- c(end.position_h,   st_near$endPos)
-                  na_h <- c(na_h, st_near$na)
-                  nhh  <- c(nhh,  st_near$nh)
-                  HR_value_h <- c(HR_value_h, if (st_far$valid) st_far$nh / st_near$nh else NA)
-                } else {
-                  CHROM_h <- c(CHROM_h, chr)
-                  start.Index_h    <- c(start.Index_h,    st_near$startIndex)
-                  end.Index_h      <- c(end.Index_h,      st_near$endIndex)
-                  start.position_h <- c(start.position_h, st_near$startPos)
-                  end.position_h   <- c(end.position_h,   st_near$endPos)
-                  na_h <- c(na_h, NA); nhh <- c(nhh, NA); HR_value_h <- c(HR_value_h, NA)
-                }
+                CHROM_h <- c(CHROM_h, chr)
+                start.Index_h    <- c(start.Index_h,    st_near$startIndex)
+                end.Index_h      <- c(end.Index_h,      st_near$endIndex)
+                start.position_h <- c(start.position_h, st_near$startPos)
+                end.position_h   <- c(end.position_h,   st_near$endPos)
+                na_h <- c(na_h, st_near$na); nhh <- c(nhh, st_near$nh)
+                HR_value_h <- c(HR_value_h, if (st_near$valid && st_far$valid) st_far$nh / st_near$nh else NA)
+                # diagnostics (no right window at the extreme)
+                nSNP_center_h <- c(nSNP_center_h, st_near$nSNP); nh_center_h <- c(nh_center_h, st_near$nh)
+                nSNP_left_h   <- c(nSNP_left_h, if (st_far$valid) st_far$nSNP else NA)
+                nh_left_h     <- c(nh_left_h,   if (st_far$valid) st_far$nh   else NA)
+                nSNP_right_h  <- c(nSNP_right_h, NA); nh_right_h <- c(nh_right_h, NA)
                 anchor_pos_h_chr <- c(anchor_pos_h_chr, p)
               }
             }
@@ -459,7 +430,6 @@ HaplotypeRichness.Estimation <- function(
               idx_l <- (i - win_len + 1):i
               idx_r <- i:(i + win_len - 1)
               
-              # Center, left, and right windows are salvaged with anchoring at i
               sC <- salvage_by_gap(H$POS, idx_c, maxGap, min_needed, anchor_idx = i)
               sL <- salvage_by_gap(H$POS, idx_l, maxGap, min_needed, anchor_idx = i)
               sR <- salvage_by_gap(H$POS, idx_r, maxGap, min_needed, anchor_idx = i)
@@ -474,27 +444,35 @@ HaplotypeRichness.Estimation <- function(
                 start.Index_h <- c(start.Index_h, subC$RowIndex[1]); end.Index_h <- c(end.Index_h, subC$RowIndex[nrow(subC)])
                 start.position_h <- c(start.position_h, subC$POS[1]); end.position_h <- c(end.position_h, subC$POS[nrow(subC)])
                 na_h <- c(na_h, length(cntC)); nhh <- c(nhh, nhC)
-                
-                if (sL$valid && sR$valid) {
-                  subL <- H[sL$use_idx, , drop=FALSE]; subR <- H[sR$use_idx, , drop=FALSE]
-                  ML <- as.matrix(subL[, hap_cols, drop=FALSE]); MR <- as.matrix(subR[, hap_cols, drop=FALSE])
-                  if (!is.character(ML)) storage.mode(ML) <- "character"
-                  if (!is.character(MR)) storage.mode(MR) <- "character"
+                # diagnostics (bpLens from salvaged blocks)
+                bpC <- subC$POS[nrow(subC)] - subC$POS[1]
+                bpL <- if (sL$valid) (H[sL$use_idx[length(sL$use_idx)],"POS"] - H[sL$use_idx[1],"POS"]) else NA
+                bpR <- if (sR$valid) (H[sR$use_idx[length(sR$use_idx)],"POS"] - H[sR$use_idx[1],"POS"]) else NA
+                bp_center_h <- c(bp_center_h, bpC)
+                bp_left_h   <- c(bp_left_h, bpL)
+                bp_right_h  <- c(bp_right_h, bpR)
+                nh_center_h <- c(nh_center_h, nhC)
+                nh_left_h   <- c(nh_left_h, if (sL$valid) {
+                  subL <- H[sL$use_idx, , drop=FALSE]; ML <- as.matrix(subL[, hap_cols, drop=FALSE]); if (!is.character(ML)) storage.mode(ML) <- "character"
                   keysL <- apply(ML, 2, paste0, collapse="\r"); grpL <- match(keysL, unique(keysL))
+                  cntL <- tabulate(grpL, nbins=max(grpL)); 1/sum((cntL/length(keysL))^2)
+                } else NA)
+                nh_right_h  <- c(nh_right_h, if (sR$valid) {
+                  subR <- H[sR$use_idx, , drop=FALSE]; MR <- as.matrix(subR[, hap_cols, drop=FALSE]); if (!is.character(MR)) storage.mode(MR) <- "character"
                   keysR <- apply(MR, 2, paste0, collapse="\r"); grpR <- match(keysR, unique(keysR))
-                  cntL <- tabulate(grpL, nbins=max(grpL)); cntR <- tabulate(grpR, nbins=max(grpR))
-                  nhL <- 1/sum((cntL/length(keysL))^2); nhR <- 1/sum((cntR/length(keysR))^2)
-                  HR_value_h <- c(HR_value_h, (nhL + nhR)/(2*nhC))
-                } else {
-                  HR_value_h <- c(HR_value_h, NA)
-                }
+                  cntR <- tabulate(grpR, nbins=max(grpR)); 1/sum((cntR/length(keysR))^2)
+                } else NA)
+                HR_value_h <- c(HR_value_h, if (sL$valid && sR$valid) {
+                  nhL <- tail(nh_left_h, 1); nhR <- tail(nh_right_h, 1); (nhL + nhR)/(2*nhC)
+                } else NA)
               } else {
-                # Keep attempted center bounds when not salvageable
                 start.Index_h    <- c(start.Index_h,    H$RowIndex[idx_c[1]])
                 end.Index_h      <- c(end.Index_h,      H$RowIndex[idx_c[length(idx_c)]])
                 start.position_h <- c(start.position_h, H$POS[idx_c[1]])
                 end.position_h   <- c(end.position_h,   H$POS[idx_c[length(idx_c)]])
                 na_h <- c(na_h, NA); nhh <- c(nhh, NA); HR_value_h <- c(HR_value_h, NA)
+                bp_center_h <- c(bp_center_h, NA); bp_left_h <- c(bp_left_h, NA); bp_right_h <- c(bp_right_h, NA)
+                nh_center_h <- c(nh_center_h, NA); nh_left_h <- c(nh_left_h, NA); nh_right_h <- c(nh_right_h, NA)
               }
               anchor_pos_h_chr <- c(anchor_pos_h_chr, H$POS[i])
               
@@ -515,20 +493,28 @@ HaplotypeRichness.Estimation <- function(
                 start.Index_h <- c(start.Index_h, subN$RowIndex[1]); end.Index_h <- c(end.Index_h, subN$RowIndex[nrow(subN)])
                 start.position_h <- c(start.position_h, subN$POS[1]); end.position_h <- c(end.position_h, subN$POS[nrow(subN)])
                 na_h <- c(na_h, length(cntN)); nhh <- c(nhh, nhN)
-                
-                HR_value_h <- c(HR_value_h, if (sF$valid) {
+                # diagnostics (no left; far is taken as "right")
+                bp_center_h <- c(bp_center_h, subN$POS[nrow(subN)]-subN$POS[1]); nh_center_h <- c(nh_center_h, nhN)
+                bp_left_h   <- c(bp_left_h, NA); nh_left_h <- c(nh_left_h, NA)
+                if (sF$valid) {
                   subF <- H[sF$use_idx, , drop=FALSE]
+                  bp_right_h <- c(bp_right_h, subF$POS[nrow(subF)]-subF$POS[1])
                   MF <- as.matrix(subF[, hap_cols, drop=FALSE]); if (!is.character(MF)) storage.mode(MF) <- "character"
                   keysF <- apply(MF, 2, paste0, collapse="\r"); grpF <- match(keysF, unique(keysF))
                   cntF <- tabulate(grpF, nbins=max(grpF)); nhF <- 1/sum((cntF/length(keysF))^2)
-                  nhF / nhN
-                } else NA)
+                  nh_right_h <- c(nh_right_h, nhF)
+                  HR_value_h <- c(HR_value_h, nhF / nhN)
+                } else {
+                  bp_right_h <- c(bp_right_h, NA); nh_right_h <- c(nh_right_h, NA); HR_value_h <- c(HR_value_h, NA)
+                }
               } else {
                 start.Index_h    <- c(start.Index_h,    H$RowIndex[idx_n[1]])
                 end.Index_h      <- c(end.Index_h,      H$RowIndex[idx_n[length(idx_n)]])
                 start.position_h <- c(start.position_h, H$POS[idx_n[1]])
                 end.position_h   <- c(end.position_h,   H$POS[idx_n[length(idx_n)]])
                 na_h <- c(na_h, NA); nhh <- c(nhh, NA); HR_value_h <- c(HR_value_h, NA)
+                bp_center_h <- c(bp_center_h, NA); bp_left_h <- c(bp_left_h, NA); bp_right_h <- c(bp_right_h, NA)
+                nh_center_h <- c(nh_center_h, NA); nh_left_h <- c(nh_left_h, NA); nh_right_h <- c(nh_right_h, NA)
               }
               anchor_pos_h_chr <- c(anchor_pos_h_chr, H$POS[i])
               
@@ -549,20 +535,28 @@ HaplotypeRichness.Estimation <- function(
                 start.Index_h <- c(start.Index_h, subN$RowIndex[1]); end.Index_h <- c(end.Index_h, subN$RowIndex[nrow(subN)])
                 start.position_h <- c(start.position_h, subN$POS[1]); end.position_h <- c(end.position_h, subN$POS[nrow(subN)])
                 na_h <- c(na_h, length(cntN)); nhh <- c(nhh, nhN)
-                
-                HR_value_h <- c(HR_value_h, if (sF$valid) {
+                # diagnostics (no right; far is taken as "left")
+                bp_center_h <- c(bp_center_h, subN$POS[nrow(subN)]-subN$POS[1]); nh_center_h <- c(nh_center_h, nhN)
+                bp_right_h  <- c(bp_right_h, NA); nh_right_h <- c(nh_right_h, NA)
+                if (sF$valid) {
                   subF <- H[sF$use_idx, , drop=FALSE]
+                  bp_left_h <- c(bp_left_h, subF$POS[nrow(subF)]-subF$POS[1])
                   MF <- as.matrix(subF[, hap_cols, drop=FALSE]); if (!is.character(MF)) storage.mode(MF) <- "character"
                   keysF <- apply(MF, 2, paste0, collapse="\r"); grpF <- match(keysF, unique(keysF))
                   cntF <- tabulate(grpF, nbins=max(grpF)); nhF <- 1/sum((cntF/length(keysF))^2)
-                  nhF / nhN
-                } else NA)
+                  nh_left_h <- c(nh_left_h, nhF)
+                  HR_value_h <- c(HR_value_h, nhF / nhN)
+                } else {
+                  bp_left_h <- c(bp_left_h, NA); nh_left_h <- c(nh_left_h, NA); HR_value_h <- c(HR_value_h, NA)
+                }
               } else {
                 start.Index_h    <- c(start.Index_h,    H$RowIndex[idx_n[1]])
                 end.Index_h      <- c(end.Index_h,      H$RowIndex[idx_n[length(idx_n)]])
                 start.position_h <- c(start.position_h, H$POS[idx_n[1]])
                 end.position_h   <- c(end.position_h,   H$POS[idx_n[length(idx_n)]])
                 na_h <- c(na_h, NA); nhh <- c(nhh, NA); HR_value_h <- c(HR_value_h, NA)
+                bp_center_h <- c(bp_center_h, NA); bp_left_h <- c(bp_left_h, NA); bp_right_h <- c(bp_right_h, NA)
+                nh_center_h <- c(nh_center_h, NA); nh_left_h <- c(nh_left_h, NA); nh_right_h <- c(nh_right_h, NA)
               }
               anchor_pos_h_chr <- c(anchor_pos_h_chr, H$POS[i])
             }
@@ -584,6 +578,19 @@ HaplotypeRichness.Estimation <- function(
         HR_chr <- as.data.frame(lapply(HR_chr, as.numeric))
         if (isTRUE(consecutiveSNP)) {
           HR_chr$anchor.pos <- as.numeric(anchor_pos_h_chr)
+          # attach diagnostics depending on approach
+          if (approach == "Bp.based") {
+            HR_chr$nSNP_center <- as.numeric(nSNP_center_h)
+            HR_chr$nSNP_left   <- as.numeric(nSNP_left_h)
+            HR_chr$nSNP_right  <- as.numeric(nSNP_right_h)
+          } else {
+            HR_chr$bpLen_center <- as.numeric(bp_center_h)
+            HR_chr$bpLen_left   <- as.numeric(bp_left_h)
+            HR_chr$bpLen_right  <- as.numeric(bp_right_h)
+          }
+          HR_chr$nh_center <- as.numeric(nh_center_h)
+          HR_chr$nh_left   <- as.numeric(nh_left_h)
+          HR_chr$nh_right  <- as.numeric(nh_right_h)
         }
         HR_haplo <- rbind(HR_haplo, HR_chr)
       }
@@ -598,6 +605,10 @@ HaplotypeRichness.Estimation <- function(
   # Initialize storage objects
   fazes <- CHROM <- na <- start.Index <- end.Index <- start.position <- end.position <- nhh <- nh <- HR_value <- HRdata <- NULL
   anchor_pos <- NULL   # Used only when consecutiveSNP = TRUE on autosomes
+  # (autosomes, consecutiveSNP=TRUE): diagnostics vectors
+  nSNP_center <- nSNP_left <- nSNP_right <- NULL
+  bp_center   <- bp_left   <- bp_right   <- NULL
+  nh_center   <- nh_left   <- nh_right   <- NULL
   
   # Parse genotype columns into phased alleles h1 and h2 for each individual
   for (f in 10:ncol(vcf)) {
@@ -633,92 +644,58 @@ HaplotypeRichness.Estimation <- function(
     last_pos <- pos_vec[length(pos_vec)]
     
     if (!isTRUE(consecutiveSNP)) {
-      # Sliding by bp distance
       if (approach == "Bp.based") {
-        # Bp.based, non-consecutive, autosomes
-        startt <- start
-        endd <- end
-        if (endd <= vcf_chr[1, 3]) {
-          startt <- vcf_chr[1, 3]
-          endd <- startt + endd
-        }
+        startt <- start; endd <- end
+        if (endd <= vcf_chr[1, 3]) { startt <- vcf_chr[1, 3]; endd <- startt + endd }
         while (endd <= vcf_chr[nrow(vcf_chr), 3]) {
-          if (endd != vcf_chr[nrow(vcf_chr), 3] & (endd + slide) > vcf_chr[nrow(vcf_chr), 3]) {
-            endd <- vcf_chr[nrow(vcf_chr), 3]
-          }
+          if (endd != vcf_chr[nrow(vcf_chr), 3] & (endd + slide) > vcf_chr[nrow(vcf_chr), 3]) endd <- vcf_chr[nrow(vcf_chr), 3]
           k <- vcf_chr[which(vcf_chr$POS >= startt & vcf_chr$POS <= endd), c(-2, -4:-10)]
           if (nrow(k) >= minSNP) {
             CHROM <- c(CHROM, vcf_chr[1, 2])
             index_pos <- k[c(1, nrow(k)), 1:2]
-            M <- as.matrix(k[, -1:-2, drop = FALSE])
-            if (!is.character(M)) storage.mode(M) <- "character"
+            M <- as.matrix(k[, -1:-2, drop = FALSE]); if (!is.character(M)) storage.mode(M) <- "character"
             keys <- apply(M, 2, paste0, collapse = "\r")
             grp  <- match(keys, unique(keys))
             cnt  <- tabulate(grp, nbins = max(grp))
             freq <- cnt / length(keys)
             eff  <- 1 / sum(freq^2)
             na_current <- length(cnt)
-            start.position <- c(start.position, index_pos[1, 2])
-            end.position   <- c(end.position,   index_pos[2, 2])
-            start.Index    <- c(start.Index,    index_pos[1, 1])
-            end.Index      <- c(end.Index,      index_pos[2, 1])
-            nhh <- c(nhh, eff)
-            na  <- c(na,  na_current)
+            start.position <- c(start.position, index_pos[1, 2]); end.position   <- c(end.position,   index_pos[2, 2])
+            start.Index    <- c(start.Index,    index_pos[1, 1]); end.Index      <- c(end.Index,      index_pos[2, 1])
+            nhh <- c(nhh, eff); na  <- c(na,  na_current)
           } else if (nrow(k) > 0) {
             index_pos <- k[c(1, nrow(k)), 1:2]
             CHROM <- c(CHROM, vcf_chr[1, 2])
-            start.position <- c(start.position, index_pos[1, 2])
-            end.position   <- c(end.position,   index_pos[2, 2])
-            start.Index    <- c(start.Index,    index_pos[1, 1])
-            end.Index      <- c(end.Index,      index_pos[2, 1])
-            na  <- c(na,  NA)
-            nhh <- c(nhh, NA)
+            start.position <- c(start.position, index_pos[1, 2]); end.position   <- c(end.position,   index_pos[2, 2])
+            start.Index    <- c(start.Index,    index_pos[1, 1]); end.Index      <- c(end.Index,      index_pos[2, 1])
+            na  <- c(na,  NA); nhh <- c(nhh, NA)
           }
-          startt <- startt + slide
-          endd   <- endd + slide
+          startt <- startt + slide; endd   <- endd + slide
         }
-        m <- length(nhh)
-        HR_value_chr <- rep(NA_real_, m)
-        if (m >= 2) {
-          HR_value_chr[1] <- nhh[2] / nhh[1]
-          HR_value_chr[m] <- nhh[m-1] / nhh[m]
-        }
-        if (m > 2) {
-          mid <- 2:(m-1)
-          HR_value_chr[mid] <- (nhh[mid-1] + nhh[mid+1]) / (2 * nhh[mid])
-        }
-        HR_value <- c(HR_value, HR_value_chr)
-        nh  <- c(nh, nhh)
-        nhh <- NULL
+        m <- length(nhh); HR_value_chr <- rep(NA_real_, m)
+        if (m >= 2) { HR_value_chr[1] <- nhh[2] / nhh[1]; HR_value_chr[m] <- nhh[m-1] / nhh[m] }
+        if (m > 2) { mid <- 2:(m-1); HR_value_chr[mid] <- (nhh[mid-1] + nhh[mid+1]) / (2 * nhh[mid]) }
+        HR_value <- c(HR_value, HR_value_chr); nh  <- c(nh, nhh); nhh <- NULL
       } else {
-        # SNP.based, non-consecutive, autosomes — index windows with maxGap salvage
         win_len <- if ((end - start) > 0) (end - start) else end
         if (win_len <= 0) stop("In SNP.based mode (autosomes, non-consecutive) window length (end-start) must be > 0.")
-        stepS <- max(1, as.integer(slide))
-        min_needed <- needed_snp_count(minSNP, win_len)
-        
+        stepS <- max(1, as.integer(slide)); min_needed <- needed_snp_count(minSNP, win_len)
         tmp_nh <- tmp_na <- tmp_si <- tmp_ei <- tmp_sp <- tmp_ep <- NULL
         for (iL in seq.int(1 + start, nrow(vcf_chr), by = stepS)) {
-          iR <- min(iL + win_len - 1, nrow(vcf_chr))
-          idx <- iL:iR
-          
+          iR <- min(iL + win_len - 1, nrow(vcf_chr)); idx <- iL:iR
           sv <- salvage_by_gap(vcf_chr$POS, idx, maxGap, min_needed, anchor_idx = NULL)
           CHROM <- c(CHROM, vcf_chr[1, 2])
-          
           if (sv$valid) {
             k  <- vcf_chr[sv$use_idx, c(-2, -4:-10)]
             ip <- k[c(1, nrow(k)), 1:2]
             M  <- as.matrix(k[, -1:-2, drop = FALSE]); if (!is.character(M)) storage.mode(M) <- "character"
             keys <- apply(M, 2, paste0, collapse = "\r"); grp <- match(keys, unique(keys))
             cnt  <- tabulate(grp, nbins = max(grp)); eff <- 1/sum((cnt/ncol(M))^2)
-            tmp_si <- c(tmp_si, ip[1,1]); tmp_ei <- c(tmp_ei, ip[2,1])
-            tmp_sp <- c(tmp_sp, ip[1,2]); tmp_ep <- c(tmp_ep, ip[2,2])
+            tmp_si <- c(tmp_si, ip[1,1]); tmp_ei <- c(tmp_ei, ip[2,1]); tmp_sp <- c(tmp_sp, ip[1,2]); tmp_ep <- c(tmp_ep, ip[2,2])
             tmp_na <- c(tmp_na, length(cnt)); tmp_nh <- c(tmp_nh, eff)
           } else {
-            k0 <- vcf_chr[idx, c(-2, -4:-10)]
-            ip0 <- k0[c(1, nrow(k0)), 1:2]
-            tmp_si <- c(tmp_si, ip0[1,1]); tmp_ei <- c(tmp_ei, ip0[2,1])
-            tmp_sp <- c(tmp_sp, ip0[1,2]); tmp_ep <- c(tmp_ep, ip0[2,2])
+            k0 <- vcf_chr[idx, c(-2, -4:-10)]; ip0 <- k0[c(1, nrow(k0)), 1:2]
+            tmp_si <- c(tmp_si, ip0[1,1]); tmp_ei <- c(tmp_ei, ip0[2,1]); tmp_sp <- c(tmp_sp, ip0[1,2]); tmp_ep <- c(tmp_ep, ip0[2,2])
             tmp_na <- c(tmp_na, NA);       tmp_nh <- c(tmp_nh, NA)
           }
         }
@@ -746,6 +723,7 @@ HaplotypeRichness.Estimation <- function(
             sIdx <- if (length(idx) > 0) vcf_chr[idx[1], 1] else NA
             eIdx <- if (length(idx) > 0) vcf_chr[idx[length(idx)], 1] else NA
             return(list(valid=FALSE, na=NA, nh=NA,
+                        nSNP=length(idx), bpLen=R0-L0,
                         startIndex=sIdx, endIndex=eIdx,
                         startPos=L0, endPos=R0))
           }
@@ -760,6 +738,7 @@ HaplotypeRichness.Estimation <- function(
           list(valid=TRUE,
                na=length(cnt),
                nh=1 / sum(freq^2),
+               nSNP=length(idx), bpLen=ip[2,2]-ip[1,2],
                startIndex=ip[1, 1], endIndex=ip[2, 1],
                startPos=ip[1, 2],  endPos=ip[2, 2])
         }
@@ -788,6 +767,12 @@ HaplotypeRichness.Estimation <- function(
                                 (st_left$nh + st_right$nh) / (2 * st_center$nh)
                               else
                                 NA)
+                # diagnostics
+                nSNP_center <- c(nSNP_center, st_center$nSNP); nh_center <- c(nh_center, st_center$nh)
+                nSNP_left   <- c(nSNP_left,   if (st_left$valid)  st_left$nSNP  else NA)
+                nSNP_right  <- c(nSNP_right,  if (st_right$valid) st_right$nSNP else NA)
+                nh_left     <- c(nh_left,     if (st_left$valid)  st_left$nh     else NA)
+                nh_right    <- c(nh_right,    if (st_right$valid) st_right$nh    else NA)
               } else {
                 CHROM <- c(CHROM, vcf_chr[1, 2])
                 start.Index    <- c(start.Index, st_center$startIndex)
@@ -795,51 +780,45 @@ HaplotypeRichness.Estimation <- function(
                 start.position <- c(start.position, st_center$startPos)
                 end.position   <- c(end.position,   st_center$endPos)
                 na <- c(na, NA); nhh <- c(nhh, NA); HR_value <- c(HR_value, NA)
+                nSNP_center <- c(nSNP_center, NA); nSNP_left <- c(nSNP_left, NA); nSNP_right <- c(nSNP_right, NA)
+                nh_center <- c(nh_center, NA); nh_left <- c(nh_left, NA); nh_right <- c(nh_right, NA)
               }
               anchor_pos <- c(anchor_pos, p)
               
             } else if (left_edge) {
               st_near <- compute_hap_stats(p, p + end)
               st_far  <- compute_hap_stats(p + half_end, p + 3*half_end)
-              if (st_near$valid) {
-                CHROM <- c(CHROM, vcf_chr[1, 2])
-                start.Index    <- c(start.Index,    st_near$startIndex)
-                end.Index      <- c(end.Index,      st_near$endIndex)
-                start.position <- c(start.position, st_near$startPos)
-                end.position   <- c(end.position,   st_near$endPos)
-                na  <- c(na,  st_near$na)
-                nhh <- c(nhh, st_near$nh)
-                HR_value <- c(HR_value, if (st_far$valid) st_far$nh / st_near$nh else NA)
-              } else {
-                CHROM <- c(CHROM, vcf_chr[1, 2])
-                start.Index    <- c(start.Index, st_near$startIndex)
-                end.Index      <- c(end.Index,   st_near$endIndex)
-                start.position <- c(start.position, st_near$startPos)
-                end.position   <- c(end.position,   st_near$endPos)
-                na <- c(na, NA); nhh <- c(nhh, NA); HR_value <- c(HR_value, NA)
-              }
+              CHROM <- c(CHROM, vcf_chr[1, 2])
+              start.Index    <- c(start.Index,    st_near$startIndex)
+              end.Index      <- c(end.Index,      st_near$endIndex)
+              start.position <- c(start.position, st_near$startPos)
+              end.position   <- c(end.position,   st_near$endPos)
+              na  <- c(na,  st_near$na)
+              nhh <- c(nhh, st_near$nh)
+              HR_value <- c(HR_value, if (st_far$valid) st_far$nh / st_near$nh else NA)
+              # diagnostics
+              nSNP_center <- c(nSNP_center, st_near$nSNP); nh_center <- c(nh_center, st_near$nh)
+              nSNP_left   <- c(nSNP_left, NA); nh_left <- c(nh_left, NA)
+              nSNP_right  <- c(nSNP_right, if (st_far$valid) st_far$nSNP else NA)
+              nh_right    <- c(nh_right,  if (st_far$valid) st_far$nh  else NA)
               anchor_pos <- c(anchor_pos, p)
               
             } else { # right edge
               st_near <- compute_hap_stats(p - end, p)
               st_far  <- compute_hap_stats(p - 3*half_end, p - half_end)
-              if (st_near$valid) {
-                CHROM <- c(CHROM, vcf_chr[1, 2])
-                start.Index    <- c(start.Index,    st_near$startIndex)
-                end.Index      <- c(end.Index,      st_near$endIndex)
-                start.position <- c(start.position, st_near$startPos)
-                end.position   <- c(end.position,   st_near$endPos)
-                na  <- c(na,  st_near$na)
-                nhh <- c(nhh, st_near$nh)
-                HR_value <- c(HR_value, if (st_far$valid) st_far$nh / st_near$nh else NA)
-              } else {
-                CHROM <- c(CHROM, vcf_chr[1, 2])
-                start.Index    <- c(start.Index, st_near$startIndex)
-                end.Index      <- c(end.Index,   st_near$endIndex)
-                start.position <- c(start.position, st_near$startPos)
-                end.position   <- c(end.position,   st_near$endPos)
-                na <- c(na, NA); nhh <- c(nhh, NA); HR_value <- c(HR_value, NA)
-              }
+              CHROM <- c(CHROM, vcf_chr[1, 2])
+              start.Index    <- c(start.Index,    st_near$startIndex)
+              end.Index      <- c(end.Index,      st_near$endIndex)
+              start.position <- c(start.position, st_near$startPos)
+              end.position   <- c(end.position,   st_near$endPos)
+              na  <- c(na,  st_near$na)
+              nhh <- c(nhh, st_near$nh)
+              HR_value <- c(HR_value, if (st_far$valid) st_far$nh / st_near$nh else NA)
+              # diagnostics
+              nSNP_center <- c(nSNP_center, st_near$nSNP); nh_center <- c(nh_center, st_near$nh)
+              nSNP_left   <- c(nSNP_left, if (st_far$valid) st_far$nSNP else NA)
+              nh_left     <- c(nh_left,   if (st_far$valid) st_far$nh   else NA)
+              nSNP_right  <- c(nSNP_right, NA); nh_right <- c(nh_right, NA)
               anchor_pos <- c(anchor_pos, p)
             }
           }
@@ -877,27 +856,39 @@ HaplotypeRichness.Estimation <- function(
               keysC <- apply(MC, 2, paste0, collapse="\r"); grpC <- match(keysC, unique(keysC))
               cntC <- tabulate(grpC, nbins=max(grpC)); nhC <- 1/sum((cntC/ncol(MC))^2)
               na <- c(na, length(cntC)); nhh <- c(nhh, nhC)
-              
-              if (sL$valid && sR$valid) {
+              # diagnostics (bp lengths from salvaged blocks)
+              bpC <- kC$POS[nrow(kC)] - kC$POS[1]
+              bpL <- if (sL$valid) {
                 kL <- vcf_chr[sL$use_idx, c(-2, -4:-10)]
+                kL$POS[nrow(kL)] - kL$POS[1]
+              } else NA
+              bpR <- if (sR$valid) {
                 kR <- vcf_chr[sR$use_idx, c(-2, -4:-10)]
-                ML <- as.matrix(kL[, -1:-2, drop=FALSE]); MR <- as.matrix(kR[, -1:-2, drop=FALSE])
-                if (!is.character(ML)) storage.mode(ML) <- "character"
-                if (!is.character(MR)) storage.mode(MR) <- "character"
+                kR$POS[nrow(kR)] - kR$POS[1]
+              } else NA
+              bp_center <- c(bp_center, bpC); bp_left <- c(bp_left, bpL); bp_right <- c(bp_right, bpR)
+              nh_center <- c(nh_center, nhC)
+              nh_left <- c(nh_left, if (sL$valid) {
+                ML <- as.matrix(kL[, -1:-2, drop=FALSE]); if (!is.character(ML)) storage.mode(ML) <- "character"
                 keysL <- apply(ML, 2, paste0, collapse="\r"); grpL <- match(keysL, unique(keysL))
+                cntL <- tabulate(grpL, nbins=max(grpL)); 1/sum((cntL/ncol(ML))^2)
+              } else NA)
+              nh_right <- c(nh_right, if (sR$valid) {
+                MR <- as.matrix(kR[, -1:-2, drop=FALSE]); if (!is.character(MR)) storage.mode(MR) <- "character"
                 keysR <- apply(MR, 2, paste0, collapse="\r"); grpR <- match(keysR, unique(keysR))
-                cntL <- tabulate(grpL, nbins=max(grpL)); cntR <- tabulate(grpR, nbins=max(grpR))
-                nhL <- 1/sum((cntL/ncol(ML))^2); nhR <- 1/sum((cntR/ncol(MR))^2)
-                HR_value <- c(HR_value, (nhL + nhR)/(2*nhC))
-              } else {
-                HR_value <- c(HR_value, NA)
-              }
+                cntR <- tabulate(grpR, nbins=max(grpR)); 1/sum((cntR/ncol(MR))^2)
+              } else NA)
+              HR_value <- c(HR_value, if (sL$valid && sR$valid) {
+                nhL <- tail(nh_left, 1); nhR <- tail(nh_right, 1); (nhL + nhR)/(2*nhC)
+              } else NA)
             } else {
               k0 <- vcf_chr[idx_c, c(-2, -4:-10)]
               ip0 <- k0[c(1, nrow(k0)), 1:2]
               start.Index    <- c(start.Index, ip0[1,1]); end.Index <- c(end.Index, ip0[2,1])
               start.position <- c(start.position, ip0[1,2]); end.position <- c(end.position, ip0[2,2])
               na <- c(na, NA); nhh <- c(nhh, NA); HR_value <- c(HR_value, NA)
+              bp_center <- c(bp_center, NA); bp_left <- c(bp_left, NA); bp_right <- c(bp_right, NA)
+              nh_center <- c(nh_center, NA); nh_left <- c(nh_left, NA); nh_right <- c(nh_right, NA)
             }
             anchor_pos <- c(anchor_pos, vcf_chr$POS[i])
             
@@ -918,20 +909,28 @@ HaplotypeRichness.Estimation <- function(
               keysN <- apply(MN, 2, paste0, collapse="\r"); grpN <- match(keysN, unique(keysN))
               cntN <- tabulate(grpN, nbins=max(grpN)); nhN <- 1/sum((cntN/ncol(MN))^2)
               na <- c(na, length(cntN)); nhh <- c(nhh, nhN)
-              
-              HR_value <- c(HR_value, if (sF$valid) {
+              # diagnostics (no left; far is "right")
+              bp_center <- c(bp_center, kN$POS[nrow(kN)]-kN$POS[1]); nh_center <- c(nh_center, nhN)
+              bp_left <- c(bp_left, NA); nh_left <- c(nh_left, NA)
+              if (sF$valid) {
                 kF <- vcf_chr[sF$use_idx, c(-2, -4:-10)]
+                bp_right <- c(bp_right, kF$POS[nrow(kF)]-kF$POS[1])
                 MF <- as.matrix(kF[, -1:-2, drop=FALSE]); if (!is.character(MF)) storage.mode(MF) <- "character"
                 keysF <- apply(MF, 2, paste0, collapse="\r"); grpF <- match(keysF, unique(keysF))
                 cntF <- tabulate(grpF, nbins=max(grpF)); nhF <- 1/sum((cntF/ncol(MF))^2)
-                nhF / nhN
-              } else NA)
+                nh_right <- c(nh_right, nhF)
+                HR_value <- c(HR_value, nhF / nhN)
+              } else {
+                bp_right <- c(bp_right, NA); nh_right <- c(nh_right, NA); HR_value <- c(HR_value, NA)
+              }
             } else {
               k0 <- vcf_chr[idx_n, c(-2, -4:-10)]
               ip0 <- k0[c(1, nrow(k0)), 1:2]
               start.Index    <- c(start.Index, ip0[1,1]); end.Index <- c(end.Index, ip0[2,1])
               start.position <- c(start.position, ip0[1,2]); end.position <- c(end.position, ip0[2,2])
               na <- c(na, NA); nhh <- c(nhh, NA); HR_value <- c(HR_value, NA)
+              bp_center <- c(bp_center, NA); bp_left <- c(bp_left, NA); bp_right <- c(bp_right, NA)
+              nh_center <- c(nh_center, NA); nh_left <- c(nh_left, NA); nh_right <- c(nh_right, NA)
             }
             anchor_pos <- c(anchor_pos, vcf_chr$POS[i])
             
@@ -952,20 +951,28 @@ HaplotypeRichness.Estimation <- function(
               keysN <- apply(MN, 2, paste0, collapse="\r"); grpN <- match(keysN, unique(keysN))
               cntN <- tabulate(grpN, nbins=max(grpN)); nhN <- 1/sum((cntN/ncol(MN))^2)
               na <- c(na, length(cntN)); nhh <- c(nhh, nhN)
-              
-              HR_value <- c(HR_value, if (sF$valid) {
+              # diagnostics (no right; far is "left")
+              bp_center <- c(bp_center, kN$POS[nrow(kN)]-kN$POS[1]); nh_center <- c(nh_center, nhN)
+              bp_right  <- c(bp_right, NA); nh_right <- c(nh_right, NA)
+              if (sF$valid) {
                 kF <- vcf_chr[sF$use_idx, c(-2, -4:-10)]
+                bp_left <- c(bp_left, kF$POS[nrow(kF)]-kF$POS[1])
                 MF <- as.matrix(kF[, -1:-2, drop=FALSE]); if (!is.character(MF)) storage.mode(MF) <- "character"
                 keysF <- apply(MF, 2, paste0, collapse="\r"); grpF <- match(keysF, unique(keysF))
                 cntF <- tabulate(grpF, nbins=max(grpF)); nhF <- 1/sum((cntF/ncol(MF))^2)
-                nhF / nhN
-              } else NA)
+                nh_left <- c(nh_left, nhF)
+                HR_value <- c(HR_value, nhF / nhN)
+              } else {
+                bp_left <- c(bp_left, NA); nh_left <- c(nh_left, NA); HR_value <- c(HR_value, NA)
+              }
             } else {
               k0 <- vcf_chr[idx_n, c(-2, -4:-10)]
               ip0 <- k0[c(1, nrow(k0)), 1:2]
               start.Index    <- c(start.Index, ip0[1,1]); end.Index <- c(end.Index, ip0[2,1])
               start.position <- c(start.position, ip0[1,2]); end.position <- c(end.position, ip0[2,2])
               na <- c(na, NA); nhh <- c(nhh, NA); HR_value <- c(HR_value, NA)
+              bp_center <- c(bp_center, NA); bp_left <- c(bp_left, NA); bp_right <- c(bp_right, NA)
+              nh_center <- c(nh_center, NA); nh_left <- c(nh_left, NA); nh_right <- c(nh_right, NA)
             }
             anchor_pos <- c(anchor_pos, vcf_chr$POS[i])
           }
@@ -983,6 +990,19 @@ HaplotypeRichness.Estimation <- function(
     HR <- as.data.frame(cbind(CHROM, start.Index, start.position, end.Index, end.position, na, nh, HR_value))
     HR <- as.data.frame(lapply(HR, as.numeric))
     HR$anchor.pos <- as.numeric(anchor_pos)
+    # attach diagnostics depending on approach
+    if (approach == "Bp.based") {
+      HR$nSNP_center <- as.numeric(nSNP_center)
+      HR$nSNP_left   <- as.numeric(nSNP_left)
+      HR$nSNP_right  <- as.numeric(nSNP_right)
+    } else {
+      HR$bpLen_center <- as.numeric(bp_center)
+      HR$bpLen_left   <- as.numeric(bp_left)
+      HR$bpLen_right  <- as.numeric(bp_right)
+    }
+    HR$nh_center <- as.numeric(nh_center)
+    HR$nh_left   <- as.numeric(nh_left)
+    HR$nh_right  <- as.numeric(nh_right)
   }
   
   close(pb)
@@ -1069,3 +1089,4 @@ HaplotypeRichness.Estimation <- function(
   message(Sys.time(), " | Analysis completed successfully.")
   return(HR)
 }
+                                        
