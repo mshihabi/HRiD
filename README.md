@@ -1,6 +1,6 @@
-HaplotypeRichness.Estimation (HR: HRiD / HRiP)
+## HaplotypeRichness.Estimation (HR: HRiD / HRiP)
 ________________________________________
-Concept — HRiD (and HRiP) in a nutshell
+### Concept — HRiD (and HRiP) in a nutshell
 
 Haplotype Richness Drop (HRiD) is a within-population statistic that identifies sudden local declines in haplotype richness as evidence of positive selection. It uses the effective number of haplotypes (nh)—the haplotypic analogue of Kimura–Crow’s effective number of alleles—as the diversity measure.
 
@@ -10,7 +10,7 @@ HRiD was first introduced on the X chromosome to leverage male hemizygosity (exa
 
 Subsequent work generalized HRiD to autosomes (using phased haplotypes) and used it alongside “classical” scans. The principle remained the same: local drops in nh highlight sweep candidates, while the approach remains complementary to ROH- and EHH-based statistics.
 ________________________________________
-How to read HR, HRiD and HRiP
+### How to read HR, HRiD and HRiP
 
 •	Raw HR before normalization
 
@@ -26,17 +26,17 @@ o	One-tailed p-values are reported from opposite Z tails:
 
   -> HRiP_Pvalue = pnorm(Z): small when Z is large negative (HR is low; richness increase).
 ________________________________________
-TL;DR
+### TL;DR
 
 •	HRiD detects decreases in haplotype richness (positive selection).
 
 •	HRiP flags increases (can indicate balancing selection).
 ________________________________________
-What the function does
+### What the function does
 
 HaplotypeRichness.Estimation() computes window-based nh and a local HR statistic from phased VCF data. It optionally applies Z-score normalization and one-tailed p-values for HRiD (decrease) and HRiP (increase). It supports both autosomes and sex chromosomes and includes optional haploid/hemizygosity handling.
 ________________________________________
-Calculation modes (pick one combination)
+### Calculation modes (pick one combination)
 
 1.	Bp.based + non-consecutive: fixed bp windows sliding by slide bp.
 2.	Bp.based + consecutiveSNP=TRUE: for each SNP, analyze a bp-length window centered at that SNP (plus left/right neighbors for the contrast). Ignores slide.
@@ -45,7 +45,7 @@ Calculation modes (pick one combination)
 
 In every mode, the function counts unique haplotypes per window (from haplotype strings derived from the VCF), converts them to nh, and then forms the local contrast ratio (the raw HR value). With normalization enabled, it adds Z, HRiD_Pvalue (via −Z), and HRiP_Pvalue (via +Z).
 ________________________________________
-What happens at chromosome edges (edge windows)
+### What happens at chromosome edges (edge windows)
 
 HR compares a center window to its neighbors. At the very start or end of a chromosome, symmetric neighbors are not available, so the function uses one-sided contrasts:
 
@@ -53,7 +53,7 @@ HR compares a center window to its neighbors. At the very start or end of a chro
 
 •	Consecutive-SNP modes (consecutiveSNP=TRUE): interior SNPs use symmetric left/center/right windows. At the chromosome edges, where symmetric windows cannot fit, the function compares a near window that touches the edge with a far window shifted inward by ~half a window. This preserves an informative contrast at boundaries rather than dropping edge SNPs.
 ________________________________________
-Input & windowing
+### Input & windowing
 
 •	Input (choose one):
 
@@ -67,7 +67,7 @@ o	vcf.file.names: character vector of VCF file paths to read and row-bind (ensur
 
 •	Sliding: slide = end/2 by default; ignored when consecutiveSNP=TRUE.
 ________________________________________
-Quality constraints & gap handling
+### Quality constraints & gap handling
 
 •	minSNP (depends on approach):
 
@@ -89,7 +89,7 @@ o	If exceeded, the window is split at large gaps:
 
 o	HR is computed on the kept block if it passes minSNP.
 ________________________________________
-Haploid / hemizygosity support (optional)
+### Haploid / hemizygosity support (optional)
 
 Set HaploidExistance = TRUE if some chromosomes are haploid (e.g., X outside PAR in XY systems). The function will:
 
@@ -99,7 +99,7 @@ Set HaploidExistance = TRUE if some chromosomes are haploid (e.g., X outside PAR
 
 Include PAR as a separate “chromosome” or exclude it to avoid mixing diploid and hemizygous regions. This mirrors HRiD’s original motivation on the X chromosome, where male hemizygosity provides exact haplotypes.
 ________________________________________
-Normalization & p-values
+### Normalization & p-values
 
 If WithNormalisation = TRUE, raw HR values are standardized to Z-scores either globally (all chromosomes) or per chromosome (NormalisationByChr = TRUE). One-tailed p-values are then returned for both directions:
 
@@ -109,7 +109,7 @@ If WithNormalisation = TRUE, raw HR values are standardized to Z-scores either g
 
 Log10-transformed p-values (*_LogPvalue) are included for Manhattan-style plotting.
 ________________________________________
-Output columns (most common)
+### Output columns (most common)
 
 •	Sliding (non-consecutive) modes: Window, CHROM, start.Index, start.position, end.Index, end.position, na (number of unique haplotypes), nh (effective number of haplotypes), HR_value, plus optional Z_value, HRiD_Pvalue, HRiD_LogPvalue, HRiP_Pvalue, HRiP_LogPvalue.
 
@@ -125,9 +125,9 @@ Output columns (most common)
 
   -> at chromosome edges, diagnostics for the missing neighbor are reported as NA.
 ________________________________________
-Arguments
+### Arguments
 
-Core
+### Core
 
 •	approach — "Bp.based" or "SNP.based".
 
@@ -139,13 +139,13 @@ Core
 
 •	maxGap — (SNP.based only) split threshold in bp; default 1e6.
 
-Haploids (optional)
+### Haploids (optional)
 
 •	HaploidExistance — TRUE if haploid chromosomes are present.
 
 •	HemizygosityProportion — fraction of identical alleles to flag hemizygosity (default 0.95).
 
-Normalization
+### Normalization
 
 •	WithNormalisation — TRUE to add Z and p-values.
 
@@ -153,7 +153,7 @@ Normalization
 
 Note: A full argument reference, including defaults and mode-specific behavior, is documented in the inline comments of HaplotypeRichness.Estimation().
 ________________________________________
-Installation / Usage
+### Installation / Usage
 
 This repository is function-first (no package scaffolding).
 
@@ -167,7 +167,7 @@ R version & dependencies
 
 •	Uses only base R (utils::txtProgressBar, read.table, etc.).
 ________________________________________
-Quick start (with bundled example)
+### Quick start (with bundled example)
 
 The repo includes:
 
@@ -175,7 +175,7 @@ The repo includes:
 
 •	example/example.RData — contains a small toy_vcf data.frame (phased VCF-like) and precomputed result objects for quick inspection.
 ________________________________________
-Troubleshooting
+### Troubleshooting
 
 •	“Unknown genotype separator” — Input must be phased or consistently encoded. The function accepts both | (phased) and / (unphased), but mixing them will fail. If both appear, harmonize first (e.g., convert all to |). 
 
@@ -205,7 +205,7 @@ Note: using phased input (|) is recommended. Unphased (/) input may artificially
 
 •	bpLen_* is much smaller than expected (SNP.based, consecutiveSNP=TRUE) — Large inter-SNP gaps triggered maxGap splitting; diagnostics report the bp span of the salvaged block actually used.
 ________________________________________
-Citation
+### Citation
 
 Background and original X chromosome application:
 
