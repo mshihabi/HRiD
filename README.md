@@ -112,7 +112,11 @@ Output columns (most common)
 
 •	Sliding (non-consecutive) modes: Window, CHROM, start.Index, start.position, end.Index, end.position, na (number of unique haplotypes), nh (effective number of haplotypes), HR_value, plus optional Z_value, HRiD_Pvalue, HRiD_LogPvalue, HRiP_Pvalue, HRiP_LogPvalue.
 
-•	Consecutive-SNP mode: same as above (no Window column), with SNPname and position for the focal SNP (anchor).
+•	Consecutive-SNP mode: same as above (no Window column), with SNPname and position for the focal SNP (anchor). In addition, consecutive-SNP outputs include diagnostic columns:
+-	if approach = "Bp.based": nSNP_center, nSNP_left, nSNP_right (SNP counts per window).
+-	if approach = "SNP.based": bpLen_center, bpLen_left, bpLen_right (bp span of salvaged blocks per window after maxGap).
+-	both approaches: nh_center, nh_left, nh_right (effective number of haplotypes per window). Note that nh_center is always identical to nh, since both refer to the focal (center) window; it is included for clarity and symmetry with the left/right diagnostics.
+-	At chromosome edges, diagnostics for the missing neighbor are reported as NA.
 ________________________________________
 Arguments
 
@@ -189,6 +193,10 @@ Note: using phased input (|) is recommended. Unphased (/) input may artificially
 •	Slow runtime / high memory — For large VCFs, run per chromosome, increase slide, or save intermediates with saveRDS().
 
 •	SNPname is NA (consecutiveSNP=TRUE) — Happens if VCF ID is missing (.). Use position or populate IDs.
+
+•	Diagnostics are NA on one side in consecutiveSNP=TRUE — Expected at chromosome edges where a symmetric neighbor cannot be formed.
+
+•	bpLen_* is much smaller than expected (SNP.based, consecutiveSNP=TRUE) — Large inter-SNP gaps triggered maxGap splitting; diagnostics report the bp span of the salvaged block actually used.
 ________________________________________
 Citation
 
