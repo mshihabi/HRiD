@@ -115,13 +115,13 @@ Output columns (most common)
 
 •	Consecutive-SNP mode: same as above (no Window column), with SNPname and position for the focal SNP (anchor). In addition, consecutive-SNP outputs include diagnostic columns:
 
--	if approach = "Bp.based": nSNP_center, nSNP_left, nSNP_right (SNP counts per window).
+  -> if approach = "Bp.based": nSNP_center, nSNP_left, nSNP_right (SNP counts per window).
 
--	if approach = "SNP.based": bpLen_center, bpLen_left, bpLen_right (bp span of salvaged blocks per window after maxGap).
+  -> if approach = "SNP.based": bpLen_center, bpLen_left, bpLen_right (bp span of salvaged blocks per window after maxGap).
 
--	both approaches: nh_center, nh_left, nh_right (effective number of haplotypes per window). Note that nh_center is always identical to nh, since both refer to the focal (center) window; it is included for clarity and symmetry with the left/right diagnostics.
+  -> both approaches: nh_center, nh_left, nh_right (effective number of haplotypes per window). Note that nh_center is always identical to nh, since both refer to the focal (center) window; it is included for clarity and symmetry with the left/right diagnostics.
 
--	at chromosome edges, diagnostics for the missing neighbor are reported as NA.
+  -> at chromosome edges, diagnostics for the missing neighbor are reported as NA.
 ________________________________________
 Arguments
 
