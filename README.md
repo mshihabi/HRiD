@@ -119,7 +119,9 @@ Output columns (most common)
 
   -> if approach = "SNP.based": bpLen_center, bpLen_left, bpLen_right (bp span of salvaged blocks per window after maxGap).
 
-  -> both approaches: nh_center, nh_left, nh_right (effective number of haplotypes per window). Note that nh_center is always identical to nh, since both refer to the focal (center) window; it is included for clarity and symmetry with the left/right diagnostics.
+  -> both approaches: nh_center, nh_left, nh_right (effective number of haplotypes per window). 
+  
+  -> nh_center is always identical to nh, since both refer to the focal (center) window; it is included for clarity and symmetry with the left/right diagnostics.
 
   -> at chromosome edges, diagnostics for the missing neighbor are reported as NA.
 ________________________________________
